@@ -3,6 +3,23 @@ const nextConfig = {
   images: {
     domains: ['i.ibb.co'], // imgbb domain for uploaded images
   },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+        ],
+      },
+    ]
+  },
   webpack: (config) => {
     // Support for Web Workers
     config.module.rules.push({

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { renderStage1Frame, renderFinalFrame, RenderConfig, calculateTimingInfo } from '../../src/canvas/renderFrame'
+import { transcodeWebMToMp4, canTranscodeToMp4, getEstimatedOutputSize } from '../../src/media/transcodeMp4'
 
 interface ProjectImage {
   url: string
@@ -61,6 +62,11 @@ function EditorPageContent() {
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null)
+  const [isConverting, setIsConverting] = useState(false)
+  const [conversionProgress, setConversionProgress] = useState(0)
+  const [convertedVideoUrl, setConvertedVideoUrl] = useState<string | null>(null)
+  const [conversionFormat, setConversionFormat] = useState<'mp4' | 'mov'>('mp4')
+  const [webmBlob, setWebmBlob] = useState<Blob | null>(null)
   const [showFinalPreview, setShowFinalPreview] = useState(false)
 
   useEffect(() => {
@@ -301,6 +307,7 @@ function EditorPageContent() {
         const blob = new Blob(chunks, { type: selectedMimeType })
         const url = URL.createObjectURL(blob)
         setExportedVideoUrl(url)
+        setWebmBlob(blob) // Save for potential conversion
         setIsExporting(false)
         setExportProgress(100)
       }
@@ -345,6 +352,47 @@ function EditorPageContent() {
       alert('Export failed. Please try again.')
       setIsExporting(false)
       setExportProgress(0)
+    }
+  }
+
+  const convertVideo = async () => {
+    if (!webmBlob) {
+      alert('Please export a WebM video first before converting.')
+      return
+    }
+
+    if (!canTranscodeToMp4()) {
+      alert('Your browser does not support video conversion. Please use a modern browser with SharedArrayBuffer support.')
+      return
+    }
+
+    setIsConverting(true)
+    setConversionProgress(0)
+    setConvertedVideoUrl(null)
+
+    try {
+      const convertedBlob = await transcodeWebMToMp4({
+        webmBlob,
+        format: conversionFormat,
+        onProgress: (progress) => {
+          setConversionProgress(progress)
+        },
+        onError: (error) => {
+          console.error('Conversion error:', error)
+          alert(`Conversion failed: ${error.message}`)
+        }
+      })
+
+      const url = URL.createObjectURL(convertedBlob)
+      setConvertedVideoUrl(url)
+      setIsConverting(false)
+      setConversionProgress(100)
+
+    } catch (error) {
+      console.error('Conversion failed:', error)
+      alert('Video conversion failed. Please try again.')
+      setIsConverting(false)
+      setConversionProgress(0)
     }
   }
 
@@ -921,13 +969,13 @@ function EditorPageContent() {
           {exportedVideoUrl && (
             <div style={{ marginTop: '15px' }}>
               <p style={{ color: '#28a745', marginBottom: '10px' }}>✅ Export complete!</p>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <a
                   href={exportedVideoUrl}
                   download={`${project.name}.webm`}
                   className="btn btn-success"
                 >
-                  Download Video
+                  Download WebM
                 </a>
                 <video
                   src={exportedVideoUrl}
@@ -935,6 +983,100 @@ function EditorPageContent() {
                   style={{ maxWidth: '300px', maxHeight: '200px' }}
                 />
               </div>
+            </div>
+          )}
+          
+          {/* Video Conversion Section */}
+          {exportedVideoUrl && webmBlob && (
+            <div style={{ marginTop: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '6px' }}>
+              <h3 style={{ marginBottom: '15px' }}>Convert to MP4/MOV</h3>
+              
+              {!canTranscodeToMp4() && (
+                <div style={{ 
+                  padding: '10px', 
+                  backgroundColor: '#f8d7da', 
+                  border: '1px solid #f5c6cb',
+                  borderRadius: '4px', 
+                  marginBottom: '15px',
+                  color: '#721c24'
+                }}>
+                  ⚠️ Video conversion is not supported in your browser. Please use a modern browser with SharedArrayBuffer support.
+                </div>
+              )}
+              
+              <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <label style={{ marginRight: '10px' }}>Format:</label>
+                  <select
+                    value={conversionFormat}
+                    onChange={(e) => setConversionFormat(e.target.value as 'mp4' | 'mov')}
+                    disabled={isConverting}
+                    style={{ padding: '5px', marginRight: '10px' }}
+                  >
+                    <option value="mp4">MP4 (H.264)</option>
+                    <option value="mov">MOV (QuickTime)</option>
+                  </select>
+                </div>
+                
+                <button
+                  className="btn btn-primary"
+                  onClick={convertVideo}
+                  disabled={isConverting || !canTranscodeToMp4()}
+                >
+                  {isConverting ? 'Converting...' : `Convert to ${conversionFormat.toUpperCase()}`}
+                </button>
+                
+                {webmBlob && (
+                  <span style={{ fontSize: '12px', color: '#666' }}>
+                    Estimated size: {getEstimatedOutputSize(webmBlob, conversionFormat)}
+                  </span>
+                )}
+              </div>
+              
+              {conversionProgress > 0 && isConverting && (
+                <div style={{ marginTop: '15px' }}>
+                  <div style={{ 
+                    width: '100%', 
+                    height: '8px', 
+                    backgroundColor: '#eee', 
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      width: `${conversionProgress}%`,
+                      height: '100%',
+                      backgroundColor: '#007bff',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                    {Math.round(conversionProgress)}% complete
+                    {conversionProgress < 20 && ' - Loading ffmpeg...'}
+                    {conversionProgress >= 20 && conversionProgress < 90 && ' - Converting...'}
+                    {conversionProgress >= 90 && ' - Finalizing...'}
+                  </p>
+                </div>
+              )}
+              
+              {convertedVideoUrl && (
+                <div style={{ marginTop: '15px' }}>
+                  <p style={{ color: '#28a745', marginBottom: '10px' }}>✅ Conversion complete!</p>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <a
+                      href={convertedVideoUrl}
+                      download={`${project.name}.${conversionFormat}`}
+                      className="btn btn-success"
+                    >
+                      Download {conversionFormat.toUpperCase()}
+                    </a>
+                    <video
+                      src={convertedVideoUrl}
+                      controls
+                      style={{ maxWidth: '300px', maxHeight: '200px' }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
