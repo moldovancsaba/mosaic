@@ -98,9 +98,11 @@ function EditorPageContent() {
       .map(img => {
         return new Promise<HTMLImageElement>((resolve, reject) => {
           const image = new Image()
-          image.crossOrigin = 'anonymous'
           image.onload = () => resolve(image)
-          image.onerror = reject
+          image.onerror = (error) => {
+            console.error('Failed to load image:', img.url, error)
+            reject(error)
+          }
           image.src = img.url
         })
       })
@@ -115,16 +117,20 @@ function EditorPageContent() {
     // Load frame1 if available
     if (projectData.frame1Url) {
       const frame1 = new Image()
-      frame1.crossOrigin = 'anonymous'
       frame1.onload = () => setFrame1Image(frame1)
+      frame1.onerror = (error) => {
+        console.error('Failed to load frame1:', projectData.frame1Url, error)
+      }
       frame1.src = projectData.frame1Url
     }
 
     // Load frame2 if available
     if (projectData.frame2Url) {
       const frame2 = new Image()
-      frame2.crossOrigin = 'anonymous'
       frame2.onload = () => setFrame2Image(frame2)
+      frame2.onerror = (error) => {
+        console.error('Failed to load frame2:', projectData.frame2Url, error)
+      }
       frame2.src = projectData.frame2Url
     }
   }
@@ -156,7 +162,13 @@ function EditorPageContent() {
 
   // Preview animation loop
   useEffect(() => {
-    if (!isPlaying || !project || loadedImages.length === 0) {
+    if (!isPlaying || !project) {
+      return
+    }
+    
+    // If no images are loaded but we have project images, show a message
+    if (project.images.length > 0 && loadedImages.length === 0) {
+      console.log('Images not loaded yet, waiting...')
       return
     }
 
@@ -190,27 +202,33 @@ function EditorPageContent() {
     let frameCount = 0
 
     const animate = () => {
-      // Always render Stage 1 to the hidden canvas
-      renderStage1Frame(stage1Ctx, frameCount, config)
-      
-      if (!showFinalPreview) {
-        // Show Stage 1 preview - copy from hidden canvas to visible preview canvas
-        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height)
-        previewCtx.drawImage(stage1Canvas, 0, 0)
-      } else if (finalPreviewCtx && finalPreviewCanvas && frame2Image) {
-        // Show final composition preview
-        renderFinalFrame(finalPreviewCtx, stage1Canvas, frameCount, config)
+      try {
+        // Always render Stage 1 to the hidden canvas
+        renderStage1Frame(stage1Ctx, frameCount, config)
+        
+        if (!showFinalPreview) {
+          // Show Stage 1 preview - copy from hidden canvas to visible preview canvas
+          previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height)
+          previewCtx.drawImage(stage1Canvas, 0, 0)
+        } else if (finalPreviewCtx && finalPreviewCanvas && frame2Image) {
+          // Show final composition preview
+          renderFinalFrame(finalPreviewCtx, stage1Canvas, frameCount, config)
+        }
+        
+        frameCount++
+        
+        // Loop the preview
+        if (frameCount >= config.durationSeconds * config.fps) {
+          frameCount = 0
+        }
+        
+        setPreviewFrame(frameCount)
+        animationId = requestAnimationFrame(animate)
+      } catch (error) {
+        console.error('Preview animation error:', error)
+        // Stop animation on error
+        setIsPlaying(false)
       }
-      
-      frameCount++
-      
-      // Loop the preview
-      if (frameCount >= config.durationSeconds * config.fps) {
-        frameCount = 0
-      }
-      
-      setPreviewFrame(frameCount)
-      animationId = requestAnimationFrame(animate)
     }
 
     animate()
@@ -418,14 +436,20 @@ function EditorPageContent() {
           newImages.push({
             url: data.url,
             order: (project?.images.length || 0) + newImages.length,
-            width: data.width,
-            height: data.height
+            width: data.width || 0,
+            height: data.height || 0
           })
         }
       }
 
       if (newImages.length > 0) {
-        const updatedImages = [...(project?.images || []), ...newImages]
+        const existingImages = project?.images || []
+        const updatedImages = [...existingImages, ...newImages]
+        console.log('Uploading images:', {
+          existing: existingImages.length,
+          new: newImages.length,
+          total: updatedImages.length
+        })
         await saveProject({ images: updatedImages })
       }
     } catch (error) {
