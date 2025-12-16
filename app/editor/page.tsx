@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { renderStage1Frame, renderFinalFrame, RenderConfig } from '../../src/canvas/renderFrame'
+import { renderStage1Frame, renderFinalFrame, RenderConfig, calculateTimingInfo } from '../../src/canvas/renderFrame'
 
 interface ProjectImage {
   url: string
@@ -634,6 +634,28 @@ function EditorPageContent() {
                 transition: { ...project.transition, durationMs: parseInt(e.target.value) }
               })}
             />
+            
+            {/* Warning for excessive transition time */}
+            {project.images.length > 0 && (
+              (() => {
+                const totalTransitionTime = (project.transition.durationMs / 1000) * project.images.length
+                const isExcessive = totalTransitionTime > project.export.durationSeconds
+                
+                return isExcessive ? (
+                  <div style={{ 
+                    marginTop: '5px', 
+                    padding: '8px', 
+                    backgroundColor: '#fff3cd', 
+                    border: '1px solid #ffeaa7',
+                    borderRadius: '4px', 
+                    fontSize: '12px',
+                    color: '#856404'
+                  }}>
+                    ⚠️ Transition time will be automatically reduced to fit {project.export.durationSeconds}s duration
+                  </div>
+                ) : null
+              })()
+            )}
           </div>
         </div>
       </div>
@@ -819,6 +841,37 @@ function EditorPageContent() {
                   export: { ...project.export, durationSeconds: parseInt(e.target.value) }
                 })}
               />
+              
+              {/* Timing Information */}
+              {project.images.length > 0 && (
+                <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px', fontSize: '12px' }}>
+                  <strong>Timing Breakdown:</strong>
+                  {(() => {
+                    const config: RenderConfig = {
+                      images: [],
+                      frame1W: project.frame1W,
+                      frame1H: project.frame1H,
+                      frame2W: project.frame2W,
+                      frame2H: project.frame2H,
+                      transition: project.transition,
+                      transform: project.transform,
+                      fps: project.export.fps,
+                      durationSeconds: project.export.durationSeconds
+                    }
+                    config.images = new Array(project.images.length) // Mock array for calculation
+                    const timing = calculateTimingInfo(config)
+                    
+                    return (
+                      <div style={{ marginTop: '5px' }}>
+                        <div>• Each image shown for: <strong>{timing.holdTimePerImage.toFixed(2)}s</strong></div>
+                        <div>• Transition duration: <strong>{timing.transitionTime.toFixed(2)}s</strong></div>
+                        <div>• Total cycles: <strong>{timing.totalCycles.toFixed(1)}</strong></div>
+                        <div>• {project.images.length} images × {timing.timePerCycle.toFixed(2)}s = <strong>{project.export.durationSeconds}s total</strong></div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -31,7 +31,7 @@ export interface TimelineState {
 }
 
 /**
- * Calculate timeline state for a given frame
+ * Calculate timeline state for a given frame with strict duration control
  */
 export function calculateTimelineState(
   frameNumber: number,
@@ -45,24 +45,49 @@ export function calculateTimelineState(
     return { currentIndex: 0, nextIndex: 0, transitionProgress: 0, isTransitioning: false }
   }
   
-  // Calculate time per slide cycle (including transition)
-  const timePerCycle = durationSeconds / imageCount
+  // If we're at or past the end, show the last frame
+  if (frameNumber >= totalFrames) {
+    const lastIndex = imageCount - 1
+    return { currentIndex: lastIndex, nextIndex: lastIndex, transitionProgress: 0, isTransitioning: false }
+  }
+  
   const transitionTimeSeconds = transition.durationMs / 1000
-  const holdTimeSeconds = timePerCycle - transitionTimeSeconds
+  const totalTransitionTime = transitionTimeSeconds * imageCount
+  const totalHoldTime = durationSeconds - totalTransitionTime
+  
+  // If total transition time exceeds duration, adjust transition time
+  const adjustedTransitionTime = totalTransitionTime > durationSeconds 
+    ? (durationSeconds / imageCount) * 0.5  // Use 50% of time per image for transitions
+    : transitionTimeSeconds
+  
+  const adjustedTotalTransitionTime = adjustedTransitionTime * imageCount
+  const adjustedTotalHoldTime = durationSeconds - adjustedTotalTransitionTime
+  const holdTimePerImage = adjustedTotalHoldTime / imageCount
+  
+  // Time per complete cycle (hold + transition)
+  const timePerCycle = holdTimePerImage + adjustedTransitionTime
   
   // Current time in seconds
-  const currentTime = (frameNumber / fps) % durationSeconds
+  const currentTime = frameNumber / fps
   
   // Find which cycle we're in
+  const cycleIndex = Math.floor(currentTime / timePerCycle)
   const cycleTime = currentTime % timePerCycle
-  const cycleIndex = Math.floor(currentTime / timePerCycle) % imageCount
+  
+  // Handle case where we've gone through all images
+  if (cycleIndex >= imageCount) {
+    // Show last image for remaining time
+    const lastIndex = imageCount - 1
+    return { currentIndex: lastIndex, nextIndex: lastIndex, transitionProgress: 0, isTransitioning: false }
+  }
   
   const currentIndex = cycleIndex
   const nextIndex = (cycleIndex + 1) % imageCount
   
   // Are we in transition phase?
-  if (cycleTime >= holdTimeSeconds) {
-    const transitionProgress = (cycleTime - holdTimeSeconds) / transitionTimeSeconds
+  if (cycleTime >= holdTimePerImage) {
+    // We're in transition
+    const transitionProgress = (cycleTime - holdTimePerImage) / adjustedTransitionTime
     return {
       currentIndex,
       nextIndex,
@@ -70,12 +95,51 @@ export function calculateTimelineState(
       isTransitioning: true
     }
   } else {
+    // We're in hold phase
     return {
       currentIndex,
       nextIndex,
       transitionProgress: 0,
       isTransitioning: false
     }
+  }
+}
+
+/**
+ * Calculate timing information for display in UI
+ */
+export function calculateTimingInfo(config: RenderConfig): {
+  holdTimePerImage: number
+  transitionTime: number
+  totalCycles: number
+  timePerCycle: number
+} {
+  const { images, transition, durationSeconds } = config
+  const imageCount = images.length
+  
+  if (imageCount === 0) {
+    return { holdTimePerImage: 0, transitionTime: 0, totalCycles: 0, timePerCycle: 0 }
+  }
+  
+  const transitionTimeSeconds = transition.durationMs / 1000
+  const totalTransitionTime = transitionTimeSeconds * imageCount
+  
+  // If total transition time exceeds duration, adjust transition time
+  const adjustedTransitionTime = totalTransitionTime > durationSeconds 
+    ? (durationSeconds / imageCount) * 0.5  // Use 50% of time per image for transitions
+    : transitionTimeSeconds
+  
+  const adjustedTotalTransitionTime = adjustedTransitionTime * imageCount
+  const adjustedTotalHoldTime = durationSeconds - adjustedTotalTransitionTime
+  const holdTimePerImage = adjustedTotalHoldTime / imageCount
+  const timePerCycle = holdTimePerImage + adjustedTransitionTime
+  const totalCycles = durationSeconds / timePerCycle
+  
+  return {
+    holdTimePerImage,
+    transitionTime: adjustedTransitionTime,
+    totalCycles,
+    timePerCycle
   }
 }
 
