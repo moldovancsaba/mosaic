@@ -50,6 +50,8 @@ function EditorPageContent() {
   const frame1InputRef = useRef<HTMLInputElement>(null)
   const frame2InputRef = useRef<HTMLInputElement>(null)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
+  const finalPreviewCanvasRef = useRef<HTMLCanvasElement>(null)
+  const stage1CanvasRef = useRef<HTMLCanvasElement>(null)
   
   const [isPlaying, setIsPlaying] = useState(false)
   const [previewFrame, setPreviewFrame] = useState(0)
@@ -59,6 +61,7 @@ function EditorPageContent() {
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null)
+  const [showFinalPreview, setShowFinalPreview] = useState(false)
 
   useEffect(() => {
     if (projectId) {
@@ -147,13 +150,21 @@ function EditorPageContent() {
 
   // Preview animation loop
   useEffect(() => {
-    if (!isPlaying || !previewCanvasRef.current || !project || loadedImages.length === 0) {
+    if (!isPlaying || !project || loadedImages.length === 0) {
       return
     }
 
-    const canvas = previewCanvasRef.current
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const stage1Canvas = stage1CanvasRef.current
+    const previewCanvas = previewCanvasRef.current
+    const finalPreviewCanvas = finalPreviewCanvasRef.current
+
+    if (!stage1Canvas || !previewCanvas) return
+
+    const stage1Ctx = stage1Canvas.getContext('2d')
+    const previewCtx = previewCanvas.getContext('2d')
+    const finalPreviewCtx = finalPreviewCanvas?.getContext('2d')
+
+    if (!stage1Ctx || !previewCtx) return
 
     const config: RenderConfig = {
       images: loadedImages,
@@ -173,7 +184,18 @@ function EditorPageContent() {
     let frameCount = 0
 
     const animate = () => {
-      renderStage1Frame(ctx, frameCount, config)
+      // Always render Stage 1 to the hidden canvas
+      renderStage1Frame(stage1Ctx, frameCount, config)
+      
+      if (!showFinalPreview) {
+        // Show Stage 1 preview - copy from hidden canvas to visible preview canvas
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height)
+        previewCtx.drawImage(stage1Canvas, 0, 0)
+      } else if (finalPreviewCtx && finalPreviewCanvas && frame2Image) {
+        // Show final composition preview
+        renderFinalFrame(finalPreviewCtx, stage1Canvas, frameCount, config)
+      }
+      
       frameCount++
       
       // Loop the preview
@@ -192,11 +214,17 @@ function EditorPageContent() {
         cancelAnimationFrame(animationId)
       }
     }
-  }, [isPlaying, project, loadedImages, frame1Image, frame2Image])
+  }, [isPlaying, project, loadedImages, frame1Image, frame2Image, showFinalPreview])
 
   const exportWebM = async () => {
-    if (!project || !previewCanvasRef.current || loadedImages.length === 0 || !frame1Image || !frame2Image) {
-      alert('Please ensure all images and frames are loaded before exporting.')
+    if (!project || loadedImages.length === 0 || !frame1Image) {
+      alert('Please ensure all images and Frame 1 are loaded before exporting.')
+      return
+    }
+
+    // Check if we need Frame 2 for final composition
+    if (!frame2Image && project.frame2Url) {
+      alert('Please wait for Frame 2 to load before exporting.')
       return
     }
 
@@ -211,15 +239,24 @@ function EditorPageContent() {
       stage1Canvas.height = project.frame1H
       const stage1Ctx = stage1Canvas.getContext('2d')!
 
-      const finalCanvas = document.createElement('canvas')
-      finalCanvas.width = project.frame2W
-      finalCanvas.height = project.frame2H
-      const finalCtx = finalCanvas.getContext('2d')!
+      // Determine final export canvas dimensions
+      const exportCanvas = document.createElement('canvas')
+      const exportCtx = exportCanvas.getContext('2d')!
+      
+      if (frame2Image && project.frame2W && project.frame2H) {
+        // Export final composition (Stage 1 positioned in Frame 2)
+        exportCanvas.width = project.frame2W
+        exportCanvas.height = project.frame2H
+      } else {
+        // Export just Stage 1 (slideshow with Frame 1 overlay)
+        exportCanvas.width = project.frame1W
+        exportCanvas.height = project.frame1H
+      }
 
       const config: RenderConfig = {
         images: loadedImages,
         frame1: frame1Image,
-        frame2: frame2Image,
+        frame2: frame2Image || undefined,
         frame1W: project.frame1W,
         frame1H: project.frame1H,
         frame2W: project.frame2W,
@@ -231,7 +268,7 @@ function EditorPageContent() {
       }
 
       // Set up MediaRecorder
-      const stream = finalCanvas.captureStream(config.fps)
+      const stream = exportCanvas.captureStream(config.fps)
       const chunks: Blob[] = []
       
       // Try different MIME types in order of preference
@@ -275,11 +312,17 @@ function EditorPageContent() {
       let currentFrame = 0
 
       const renderFrame = () => {
-        // Render Stage 1
+        // Always render Stage 1 (slideshow + Frame 1 overlay)
         renderStage1Frame(stage1Ctx, currentFrame, config)
         
-        // Render final composite
-        renderFinalFrame(finalCtx, stage1Canvas, currentFrame, config)
+        if (frame2Image && project.frame2W && project.frame2H) {
+          // Render final composition (Stage 1 positioned in Frame 2)
+          renderFinalFrame(exportCtx, stage1Canvas, currentFrame, config)
+        } else {
+          // Export just Stage 1
+          exportCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height)
+          exportCtx.drawImage(stage1Canvas, 0, 0)
+        }
         
         currentFrame++
         const progress = (currentFrame / totalFrames) * 100
@@ -600,19 +643,46 @@ function EditorPageContent() {
         <div className="card">
           <h2>Preview</h2>
           <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-            <div>
+            <div style={{ position: 'relative' }}>
+              {/* Stage 1 Preview */}
               <canvas
                 ref={previewCanvasRef}
-                width={Math.min(400, project.frame1W)}
-                height={Math.min(400 * (project.frame1H / project.frame1W), 400)}
+                width={project.frame1W}
+                height={project.frame1H}
                 style={{
                   border: '1px solid #ddd',
                   borderRadius: '4px',
                   maxWidth: '400px',
-                  maxHeight: '400px'
+                  maxHeight: '400px',
+                  display: showFinalPreview ? 'none' : 'block'
                 }}
               />
+              
+              {/* Final Composition Preview */}
+              {project.frame2Url && (
+                <canvas
+                  ref={finalPreviewCanvasRef}
+                  width={project.frame2W}
+                  height={project.frame2H}
+                  style={{
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    maxWidth: '400px',
+                    maxHeight: '400px',
+                    display: showFinalPreview ? 'block' : 'none'
+                  }}
+                />
+              )}
+              
+              {/* Hidden Stage 1 canvas for composition */}
+              <canvas
+                ref={stage1CanvasRef}
+                width={project.frame1W}
+                height={project.frame1H}
+                style={{ display: 'none' }}
+              />
             </div>
+            
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <button
                 className="btn btn-primary"
@@ -620,14 +690,38 @@ function EditorPageContent() {
               >
                 {isPlaying ? 'Pause' : 'Play'} Preview
               </button>
-              <p style={{ fontSize: '14px', color: '#666' }}>
-                Stage 1: {project.frame1W}x{project.frame1H}px
-              </p>
+              
               {project.frame2Url && (
-                <p style={{ fontSize: '14px', color: '#666' }}>
-                  Final: {project.frame2W}x{project.frame2H}px
-                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Preview Mode:</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px' }}>
+                    <input
+                      type="radio"
+                      name="previewMode"
+                      checked={!showFinalPreview}
+                      onChange={() => setShowFinalPreview(false)}
+                    />
+                    Stage 1 (Slideshow + Frame 1)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px' }}>
+                    <input
+                      type="radio"
+                      name="previewMode"
+                      checked={showFinalPreview}
+                      onChange={() => setShowFinalPreview(true)}
+                    />
+                    Final Composition
+                  </label>
+                </div>
               )}
+              
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                <p>Stage 1: {project.frame1W}x{project.frame1H}px</p>
+                {project.frame2Url && (
+                  <p>Final: {project.frame2W}x{project.frame2H}px</p>
+                )}
+                <p>Preview scaled to fit 400px</p>
+              </div>
             </div>
           </div>
         </div>
@@ -635,9 +729,10 @@ function EditorPageContent() {
 
       {/* Step 4: Frame 2 */}
       <div className="card">
-        <h2>Step 4: Upload Frame #2 (Final Video Frame)</h2>
+        <h2>Step 4: Upload Frame #2 (Optional - Final Video Frame)</h2>
         <p style={{ color: '#666', marginBottom: '15px' }}>
-          PNG with transparency recommended. Defines final video dimensions (target 1080p).
+          Optional: PNG with transparency to define final video dimensions and position the slideshow within a larger frame.
+          If not provided, the video will export at Frame 1 dimensions.
         </p>
         
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
@@ -730,11 +825,12 @@ function EditorPageContent() {
       )}
 
       {/* Export Section */}
-      {project.images.length >= 10 && project.frame1Url && project.frame2Url && (
+      {project.images.length >= 10 && project.frame1Url && (
         <div className="card">
           <h2>Step 6: Export Video</h2>
           <p style={{ color: '#666', marginBottom: '15px' }}>
             Export your slideshow as a WebM video. Duration: {project.export.durationSeconds}s at 30fps.
+            {project.frame2Url ? ' Final composition will include Frame 2 positioning.' : ' Exports slideshow with Frame 1 overlay.'}
           </p>
           
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
