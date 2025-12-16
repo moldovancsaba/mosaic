@@ -77,7 +77,7 @@ export default function HomePage() {
       </h1>
 
       {/* Mobile Warning */}
-      <div className="mobile-warning" style={{ display: window.innerWidth < 768 ? 'block' : 'none' }}>
+      <div className="mobile-warning" style={{ display: typeof window !== 'undefined' && window.innerWidth < 768 ? 'block' : 'none' }}>
         ⚠️ This app is optimized for desktop. Mobile support is limited.
       </div>
 

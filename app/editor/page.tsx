@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 interface ProjectImage {
@@ -36,7 +36,7 @@ interface Project {
   }
 }
 
-export default function EditorPage() {
+function EditorPageContent() {
   const searchParams = useSearchParams()
   const projectId = searchParams.get('id')
   
@@ -474,5 +474,13 @@ export default function EditorPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function EditorPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <EditorPageContent />
+    </Suspense>
   )
 }

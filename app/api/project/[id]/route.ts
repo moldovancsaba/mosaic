@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import connectDB from '@/lib/mongodb'
-import Project from '@/models/Project'
-import { ProjectUpdateRequest } from '@/app/types'
-import mongoose from 'mongoose'
+import { MongoClient, ObjectId } from 'mongodb'
+
+const client = new MongoClient(process.env.MONGODB_URI!)
+let isConnected = false
+
+async function connectToDatabase() {
+  if (!isConnected) {
+    await client.connect()
+    isConnected = true
+  }
+  return client.db('video-composer')
+}
 
 // GET /api/project/[id] - Get single project
 export async function GET(
@@ -12,16 +20,17 @@ export async function GET(
   try {
     const { id } = params
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: 'Invalid project ID' },
         { status: 400 }
       )
     }
 
-    await connectDB()
+    const db = await connectToDatabase()
+    const collection = db.collection('projects')
     
-    const project = await Project.findById(id).lean()
+    const project = await collection.findOne({ _id: new ObjectId(id) })
     
     if (!project) {
       return NextResponse.json(
@@ -30,10 +39,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({
-      ...project,
-      _id: project._id.toString()
-    })
+    return NextResponse.json({ project })
   } catch (error) {
     console.error('GET /api/project/[id] error:', error)
     return NextResponse.json(
@@ -50,34 +56,37 @@ export async function PUT(
 ) {
   try {
     const { id } = params
-    const body: ProjectUpdateRequest = await request.json()
+    const body = await request.json()
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: 'Invalid project ID' },
         { status: 400 }
       )
     }
 
-    await connectDB()
+    const db = await connectToDatabase()
+    const collection = db.collection('projects')
     
-    const project = await Project.findByIdAndUpdate(
-      id,
-      { ...body, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    ).lean()
+    const updateData = {
+      ...body,
+      updatedAt: new Date().toISOString()
+    }
+
+    const result = await collection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    )
     
-    if (!project) {
+    if (result.matchedCount === 0) {
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json({
-      ...project,
-      _id: project._id.toString()
-    })
+    const updatedProject = await collection.findOne({ _id: new ObjectId(id) })
+    return NextResponse.json({ project: updatedProject })
   } catch (error) {
     console.error('PUT /api/project/[id] error:', error)
     return NextResponse.json(
@@ -95,18 +104,19 @@ export async function DELETE(
   try {
     const { id } = params
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: 'Invalid project ID' },
         { status: 400 }
       )
     }
 
-    await connectDB()
+    const db = await connectToDatabase()
+    const collection = db.collection('projects')
     
-    const project = await Project.findByIdAndDelete(id)
+    const result = await collection.deleteOne({ _id: new ObjectId(id) })
     
-    if (!project) {
+    if (result.deletedCount === 0) {
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
