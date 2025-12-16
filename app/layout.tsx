@@ -1,12 +1,9 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
-
 export const metadata: Metadata = {
-  title: 'InBrowser Video Composer',
-  description: 'Create video slideshows with custom frames and transitions - 100% client-side',
+  title: 'In-Browser Video Composer',
+  description: 'Create looping slideshow videos with custom frames and transitions',
 }
 
 export default function RootLayout({
@@ -16,11 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <div className="min-h-screen bg-gray-50">
-          {children}
-        </div>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
