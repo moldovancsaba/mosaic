@@ -80,6 +80,32 @@ export function calculateTimelineState(
 }
 
 /**
+ * Create a composite image (image + Frame 1 overlay) on a temporary canvas
+ */
+function createCompositeImage(
+  image: HTMLImageElement | ImageBitmap,
+  frame1: HTMLImageElement | ImageBitmap | undefined,
+  canvasW: number,
+  canvasH: number
+): HTMLCanvasElement {
+  const tempCanvas = document.createElement('canvas')
+  tempCanvas.width = canvasW
+  tempCanvas.height = canvasH
+  const tempCtx = tempCanvas.getContext('2d')!
+  
+  // Draw the image with cover fit
+  const fit = fitCover(image.width, image.height, canvasW, canvasH)
+  tempCtx.drawImage(image, fit.drawX, fit.drawY, fit.drawW, fit.drawH)
+  
+  // Draw Frame #1 overlay if available
+  if (frame1) {
+    tempCtx.drawImage(frame1, 0, 0, canvasW, canvasH)
+  }
+  
+  return tempCanvas
+}
+
+/**
  * Render a single frame to Stage-1 canvas (slideshow with Frame #1 overlay)
  */
 export function renderStage1Frame(
@@ -100,32 +126,28 @@ export function renderStage1Frame(
   const currentImage = images[timeline.currentIndex]
   
   if (!timeline.isTransitioning) {
-    // Simple case: just draw current image
-    const fit = fitCover(currentImage.width, currentImage.height, canvasW, canvasH)
-    ctx.drawImage(currentImage, fit.drawX, fit.drawY, fit.drawW, fit.drawH)
+    // Simple case: create composite and draw it
+    const composite = createCompositeImage(currentImage, frame1, canvasW, canvasH)
+    ctx.drawImage(composite, 0, 0)
   } else {
-    // Transition case: blend current and next
+    // Transition case: create composites for both images and blend them
     const nextImage = images[timeline.nextIndex]
-    const currentFit = fitCover(currentImage.width, currentImage.height, canvasW, canvasH)
-    const nextFit = fitCover(nextImage.width, nextImage.height, canvasW, canvasH)
+    const currentComposite = createCompositeImage(currentImage, frame1, canvasW, canvasH)
+    const nextComposite = createCompositeImage(nextImage, frame1, canvasW, canvasH)
     
+    // Apply transition to the composite images
     applyTransition(
       ctx,
-      currentImage,
-      nextImage,
+      currentComposite,
+      nextComposite,
       timeline.transitionProgress,
       transition.type,
       transition.direction,
       canvasW,
       canvasH,
-      currentFit,
-      nextFit
+      { drawX: 0, drawY: 0, drawW: canvasW, drawH: canvasH }, // currentFit - full canvas
+      { drawX: 0, drawY: 0, drawW: canvasW, drawH: canvasH }  // nextFit - full canvas
     )
-  }
-  
-  // Draw Frame #1 overlay if available
-  if (frame1) {
-    ctx.drawImage(frame1, 0, 0, canvasW, canvasH)
   }
 }
 

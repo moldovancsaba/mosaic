@@ -18,8 +18,8 @@ export const directionVectors: Record<Direction, DirectionVector> = {
  */
 export function applyWipeTransition(
   ctx: CanvasRenderingContext2D,
-  currentImage: HTMLImageElement | ImageBitmap,
-  nextImage: HTMLImageElement | ImageBitmap,
+  currentImage: HTMLImageElement | ImageBitmap | HTMLCanvasElement,
+  nextImage: HTMLImageElement | ImageBitmap | HTMLCanvasElement,
   progress: number, // 0 to 1
   direction: Direction,
   canvasW: number,
@@ -77,8 +77,8 @@ export function applyWipeTransition(
  */
 export function applyPushTransition(
   ctx: CanvasRenderingContext2D,
-  currentImage: HTMLImageElement | ImageBitmap,
-  nextImage: HTMLImageElement | ImageBitmap,
+  currentImage: HTMLImageElement | ImageBitmap | HTMLCanvasElement,
+  nextImage: HTMLImageElement | ImageBitmap | HTMLCanvasElement,
   progress: number,
   direction: Direction,
   canvasW: number,
@@ -114,8 +114,8 @@ export function applyPushTransition(
  */
 export function applyPullTransition(
   ctx: CanvasRenderingContext2D,
-  currentImage: HTMLImageElement | ImageBitmap,
-  nextImage: HTMLImageElement | ImageBitmap,
+  currentImage: HTMLImageElement | ImageBitmap | HTMLCanvasElement,
+  nextImage: HTMLImageElement | ImageBitmap | HTMLCanvasElement,
   progress: number,
   direction: Direction,
   canvasW: number,
@@ -145,8 +145,8 @@ export function applyPullTransition(
  */
 export function applyTransition(
   ctx: CanvasRenderingContext2D,
-  currentImage: HTMLImageElement | ImageBitmap,
-  nextImage: HTMLImageElement | ImageBitmap,
+  currentImage: HTMLImageElement | ImageBitmap | HTMLCanvasElement,
+  nextImage: HTMLImageElement | ImageBitmap | HTMLCanvasElement,
   progress: number,
   type: TransitionType,
   direction: Direction,
