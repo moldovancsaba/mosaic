@@ -517,7 +517,7 @@ function EditorPageContent() {
           <button className="btn btn-secondary" onClick={() => window.history.back()}>
             Back to Projects
           </button>
-          <button className="btn btn-primary" disabled={project.images.length < 10}>
+          <button className="btn btn-primary" disabled={project.images.length < 1}>
             Preview & Export
           </button>
         </div>
@@ -525,10 +525,22 @@ function EditorPageContent() {
 
       {/* Step 1: Upload Images */}
       <div className="card">
-        <h2>Step 1: Upload Images (10+ required)</h2>
+        <h2>Step 1: Upload Images</h2>
         <p style={{ color: '#666', marginBottom: '15px' }}>
-          Current: {project.images.length} images
+          Current: {project.images.length} images {project.images.length < 2 && '(minimum 2 recommended for transitions)'}
         </p>
+        
+        <div style={{ 
+          marginBottom: '15px', 
+          padding: '10px', 
+          backgroundColor: '#e7f3ff', 
+          border: '1px solid #b3d9ff',
+          borderRadius: '4px', 
+          fontSize: '14px'
+        }}>
+          💡 <strong>Flexible Image Management:</strong> Add images one by one, remove unwanted ones, and drag to reorder. 
+          You can export with any number of images (minimum 1 recommended).
+        </div>
         
         <div
           className="upload-zone"
@@ -926,11 +938,12 @@ function EditorPageContent() {
       )}
 
       {/* Export Section */}
-      {project.images.length >= 10 && project.frame1Url && (
+      {project.images.length >= 1 && project.frame1Url && (
         <div className="card">
           <h2>Step 6: Export Video</h2>
           <p style={{ color: '#666', marginBottom: '15px' }}>
-            Export your slideshow as a WebM video. Duration: {project.export.durationSeconds}s at 30fps.
+            Export your slideshow as a WebM video with {project.images.length} image{project.images.length !== 1 ? 's' : ''}. 
+            Duration: {project.export.durationSeconds}s at 30fps.
             {project.frame2Url ? ' Final composition will include Frame 2 positioning.' : ' Exports slideshow with Frame 1 overlay.'}
           </p>
           

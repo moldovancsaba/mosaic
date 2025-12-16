@@ -148,7 +148,7 @@ export default function HomePage() {
       <div className="card">
         <h2 style={{ marginBottom: '15px' }}>How It Works</h2>
         <ol style={{ paddingLeft: '20px', lineHeight: '1.6' }}>
-          <li>Upload 10+ images and arrange them in order</li>
+          <li>Upload images and arrange them in order (add/remove as needed)</li>
           <li>Upload Frame #1 (PNG with transparency) to define slideshow dimensions</li>
           <li>Configure transitions: wipe, push, pull, or swipe with direction</li>
           <li>Upload Frame #2 (PNG with transparency) for final video dimensions</li>
