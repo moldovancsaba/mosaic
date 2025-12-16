@@ -11,6 +11,8 @@
         "find *",
         "npm *",
         "sleep *",
-        "git *"
+        "git *",
+        "curl *",
+        "echo *"
     ]
 }

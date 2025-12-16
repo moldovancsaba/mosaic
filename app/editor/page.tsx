@@ -45,6 +45,7 @@ function EditorPageContent() {
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, percentage: 0 })
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -417,11 +418,28 @@ function EditorPageContent() {
   const uploadImages = async (files: FileList) => {
     setUploading(true)
     const newImages: ProjectImage[] = []
+    
+    // Filter valid image files
+    const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
+    const totalFiles = validFiles.length
+    
+    if (totalFiles === 0) {
+      setUploading(false)
+      return
+    }
+
+    setUploadProgress({ current: 0, total: totalFiles, percentage: 0 })
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        if (!file.type.startsWith('image/')) continue
+      for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i]
+        
+        // Update progress for current file
+        setUploadProgress({ 
+          current: i + 1, 
+          total: totalFiles, 
+          percentage: Math.round(((i + 0.5) / totalFiles) * 100) 
+        })
 
         const formData = new FormData()
         formData.append('image', file)
@@ -439,28 +457,46 @@ function EditorPageContent() {
             width: data.width || 0,
             height: data.height || 0
           })
+          
+          // Update progress after successful upload
+          setUploadProgress({ 
+            current: i + 1, 
+            total: totalFiles, 
+            percentage: Math.round(((i + 1) / totalFiles) * 100) 
+          })
+        } else {
+          console.error(`Failed to upload ${file.name}:`, response.statusText)
         }
       }
 
       if (newImages.length > 0) {
         const existingImages = project?.images || []
         const updatedImages = [...existingImages, ...newImages]
-        console.log('Uploading images:', {
+        console.log('Saving images to database:', {
           existing: existingImages.length,
           new: newImages.length,
           total: updatedImages.length
         })
         await saveProject({ images: updatedImages })
       }
+      
+      // Show completion
+      if (newImages.length < totalFiles) {
+        alert(`Successfully uploaded ${newImages.length} of ${totalFiles} images. Some uploads may have failed.`)
+      }
+      
     } catch (error) {
       console.error('Upload failed:', error)
+      alert('Upload failed. Please try again.')
     } finally {
       setUploading(false)
+      setUploadProgress({ current: 0, total: 0, percentage: 0 })
     }
   }
 
   const uploadFrame = async (file: File, frameType: 'frame1' | 'frame2') => {
     setUploading(true)
+    setUploadProgress({ current: 1, total: 1, percentage: 50 })
     
     try {
       const formData = new FormData()
@@ -477,12 +513,18 @@ function EditorPageContent() {
           ? { frame1Url: data.url, frame1W: data.width, frame1H: data.height }
           : { frame2Url: data.url, frame2W: data.width, frame2H: data.height }
         
+        setUploadProgress({ current: 1, total: 1, percentage: 90 })
         await saveProject(updates)
+        setUploadProgress({ current: 1, total: 1, percentage: 100 })
+      } else {
+        throw new Error(`Failed to upload ${frameType}`)
       }
     } catch (error) {
       console.error('Frame upload failed:', error)
+      alert(`Failed to upload ${frameType}. Please try again.`)
     } finally {
       setUploading(false)
+      setUploadProgress({ current: 0, total: 0, percentage: 0 })
     }
   }
 
@@ -577,7 +619,30 @@ function EditorPageContent() {
           }}
         >
           {uploading ? (
-            <p>Uploading...</p>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ marginBottom: '10px', fontSize: '16px', fontWeight: 'bold' }}>
+                Uploading {uploadProgress.current}/{uploadProgress.total} images
+              </p>
+              <div style={{ 
+                width: '100%', 
+                height: '12px', 
+                backgroundColor: '#e0e0e0', 
+                borderRadius: '6px',
+                overflow: 'hidden',
+                marginBottom: '8px'
+              }}>
+                <div style={{
+                  width: `${uploadProgress.percentage}%`,
+                  height: '100%',
+                  backgroundColor: '#007bff',
+                  transition: 'width 0.3s ease',
+                  borderRadius: '6px'
+                }} />
+              </div>
+              <p style={{ fontSize: '14px', color: '#666' }}>
+                {uploadProgress.percentage}% complete
+              </p>
+            </div>
           ) : (
             <>
               <p>Click or drag images here</p>
@@ -646,7 +711,7 @@ function EditorPageContent() {
             onClick={() => frame1InputRef.current?.click()}
             disabled={uploading}
           >
-            {project.frame1Url ? 'Replace Frame #1' : 'Upload Frame #1'}
+            {uploading && uploadProgress.total === 1 ? 'Uploading Frame #1...' : (project.frame1Url ? 'Replace Frame #1' : 'Upload Frame #1')}
           </button>
           
           {project.frame1Url && (
@@ -847,7 +912,7 @@ function EditorPageContent() {
             onClick={() => frame2InputRef.current?.click()}
             disabled={uploading}
           >
-            {project.frame2Url ? 'Replace Frame #2' : 'Upload Frame #2'}
+            {uploading && uploadProgress.total === 1 ? 'Uploading Frame #2...' : (project.frame2Url ? 'Replace Frame #2' : 'Upload Frame #2')}
           </button>
           
           {project.frame2Url && (
