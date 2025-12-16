@@ -2,90 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Ensure CSS variables are available immediately */
-:root {
-  --nav-height: 4rem;
-  --content-padding: 1.5rem;
-  --max-content-width: 80rem;
-}
-
-/* Base styles */
-html {
-  height: 100%;
-  width: 100%;
-}
-
-body {
-  min-height: 100%;
-  width: 100%;
-  overflow-x: hidden;
-}
-
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-rgb: 255, 255, 255;
-  --nav-height: 4rem; /* Default height */
-  --content-padding: 1.5rem;
-  --max-content-width: 80rem;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-}
-
-@media (max-width: 640px) {
-  :root {
-    --nav-height: 3.5rem;
-    --content-padding: 1rem;
+@layer base {
+  html {
+    font-family: system-ui, sans-serif;
   }
 }
 
-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  background: white;
-  padding: 10px;
-  z-index: 1000;
-  width: 100%;
-}
-
-nav a {
-  margin-right: 10px;
-  color: black;
-  text-decoration: none;
-}
-
-nav a:hover {
-  text-decoration: underline;
-}
-
-.admin-content {
-  padding-top: 40px;
-}
-
-/* Minimum heights and widths */
-.content-container {
-  min-height: 100px;
-  min-width: 320px; /* Minimum supported viewport */
-}
-
-/* Prevent content overflow */
-.overflow-container {
-  max-height: calc(100vh - var(--nav-height));
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Navigation offset for main content */
-.nav-offset {
-  padding-top: var(--nav-height);
-}
-
-/* Handle very large screens */
-@media (min-width: 1920px) {
-  :root {
-    --max-content-width: 100rem;
+@layer components {
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
   }
 }

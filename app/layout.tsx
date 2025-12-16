@@ -1,15 +1,12 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import 'tailwindcss/tailwind.css'
-import 'react-toastify/dist/ReactToastify.css'
-import { ToastContainer } from 'react-toastify'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Project Management',
-  description: 'Organization and project management application',
+  title: 'InBrowser Video Composer',
+  description: 'Create video slideshows with custom frames and transitions - 100% client-side',
 }
 
 export default function RootLayout({
@@ -19,9 +16,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased`}>
-        {children}
-        <ToastContainer position="bottom-right" />
+      <body className={inter.className}>
+        <div className="min-h-screen bg-gray-50">
+          {children}
+        </div>
       </body>
     </html>
   )

@@ -15,7 +15,7 @@ const nextConfig = {
     typedRoutes: true,
   },
 
-  // Configure headers for security
+  // Configure headers for security and CORS for canvas/media
   async headers() {
     return [
       {
@@ -48,13 +48,21 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp'
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin'
           }
         ]
       }
     ];
   },
 
-  // Preserve existing webpack configuration and enhance it
+  // Enhanced webpack configuration for video composer
   webpack: (config, { isServer, dev }) => {
     // Fixes npm packages that depend on `fs` module
     if (!isServer) {
@@ -66,6 +74,24 @@ const nextConfig = {
         child_process: false,
       }
     }
+
+    // Support for Web Workers
+    config.module.rules.push({
+      test: /\.worker\.(js|ts)$/,
+      use: {
+        loader: 'worker-loader',
+        options: {
+          name: 'static/[hash].worker.js',
+          publicPath: '/_next/',
+        },
+      },
+    });
+
+    // Support for ffmpeg.wasm
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@ffmpeg/ffmpeg': '@ffmpeg/ffmpeg/dist/esm',
+    };
 
     // Add production optimizations
     if (!dev && !isServer) {
@@ -94,16 +120,16 @@ const nextConfig = {
     return config;
   },
 
-  // Preserve existing image configuration
+  // Configure images for external sources
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '*',
+        hostname: 'i.ibb.co',
       },
       {
-        protocol: 'http',
-        hostname: '*',
+        protocol: 'https',
+        hostname: '*.imgbb.com',
       }
     ],
   },

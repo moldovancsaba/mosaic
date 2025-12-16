@@ -1,43 +1,47 @@
-import { MongoClient } from 'mongodb';
+import mongoose from 'mongoose'
 
-if (!process.env.MONGODB_URI) {
-  throw new Error('Please define the MONGODB_URI environment variable');
+const MONGODB_URI = process.env.MONGODB_URI
+
+if (!MONGODB_URI) {
+  throw new Error('Please define the MONGODB_URI environment variable inside .env.local')
 }
 
-if (!process.env.MONGODB_DB) {
-  throw new Error('Please define the MONGODB_DB environment variable');
+interface MongooseCache {
+  conn: typeof mongoose | null
+  promise: Promise<typeof mongoose> | null
 }
 
-const uri = process.env.MONGODB_URI;
-const dbName = process.env.MONGODB_DB;
+// In development, use a global variable so that the value
+// is preserved across module reloads caused by HMR (Hot Module Replacement).
+let cached: MongooseCache = (global as any).mongoose
 
-let cachedClient: MongoClient | null = null;
-let cachedDb: any = null;
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null }
+}
 
-export async function connectToDatabase() {
-  if (cachedClient && cachedDb) {
-    return { client: cachedClient, db: cachedDb };
+async function connectDB(): Promise<typeof mongoose> {
+  if (cached.conn) {
+    return cached.conn
   }
 
-  const client = await MongoClient.connect(uri);
-  const db = client.db(dbName);
+  if (!cached.promise) {
+    const opts = {
+      bufferCommands: false,
+    }
 
-  cachedClient = client;
-  cachedDb = db;
-
-  return { client, db };
-}
-
-export function getMongoClient() {
-  if (!cachedClient) {
-    throw new Error('Call connectToDatabase() before using getMongoClient()');
+    cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
+      return mongoose
+    })
   }
-  return cachedClient;
+
+  try {
+    cached.conn = await cached.promise
+  } catch (e) {
+    cached.promise = null
+    throw e
+  }
+
+  return cached.conn
 }
 
-export function getMongoDb() {
-  if (!cachedDb) {
-    throw new Error('Call connectToDatabase() before using getMongoDb()');
-  }
-  return cachedDb;
-}
+export default connectDB

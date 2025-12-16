@@ -1,0 +1,16 @@
+{
+    "kiroAgent.trustedCommands": [
+        "mkdir *",
+        "pwd *",
+        "rm *",
+        "cp *",
+        "ls *",
+        "cat *",
+        "mv *",
+        "rmdir *",
+        "find *",
+        "npm *",
+        "sleep *",
+        "git *"
+    ]
+}
