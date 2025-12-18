@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { renderStage1Frame, renderFinalFrame, RenderConfig, calculateTimingInfo } from '@/canvas/renderFrame'
 import { transcodeWebMToMp4, canTranscodeToMp4, getEstimatedOutputSize } from '@/media/transcodeMp4'
+import { loadImagesWithRetry, loadImageWithRetry } from '@/lib/imageLoader'
 
 interface ProjectImage {
   url: string
@@ -69,6 +70,8 @@ function EditorPageContent() {
   const [conversionFormat, setConversionFormat] = useState<'mp4' | 'mov'>('mp4')
   const [webmBlob, setWebmBlob] = useState<Blob | null>(null)
   const [showFinalPreview, setShowFinalPreview] = useState(false)
+  const [imageLoadingProgress, setImageLoadingProgress] = useState({ loaded: 0, total: 0 })
+  const [imageLoadError, setImageLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (projectId) {
@@ -93,46 +96,68 @@ function EditorPageContent() {
   }
 
   const loadImagesForPreview = async (projectData: Project) => {
-    // Load main images
-    const imagePromises = projectData.images
-      .sort((a, b) => a.order - b.order)
-      .map(img => {
-        return new Promise<HTMLImageElement>((resolve, reject) => {
-          const image = new Image()
-          image.onload = () => resolve(image)
-          image.onerror = (error) => {
-            console.error('Failed to load image:', img.url, error)
-            reject(error)
+    setImageLoadError(null)
+    
+    // Load main images with retry logic
+    if (projectData.images.length > 0) {
+      const sortedImages = projectData.images.sort((a, b) => a.order - b.order)
+      const imageUrls = sortedImages.map(img => img.url)
+      
+      try {
+        console.log(`Loading ${imageUrls.length} images with retry logic...`)
+        const results = await loadImagesWithRetry(
+          imageUrls,
+          { maxRetries: 3, retryDelay: 1000, timeout: 30000 },
+          (loaded, total) => {
+            setImageLoadingProgress({ loaded, total })
           }
-          image.src = img.url
-        })
-      })
-
-    try {
-      const images = await Promise.all(imagePromises)
-      setLoadedImages(images)
-    } catch (error) {
-      console.error('Failed to load images for preview:', error)
+        )
+        
+        // Extract images from results (they're in order)
+        const loadedImgs = results.map(r => r.image)
+        setLoadedImages(loadedImgs)
+        console.log(`✓ All ${loadedImgs.length} images loaded successfully`)
+        setImageLoadingProgress({ loaded: 0, total: 0 })
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error loading images'
+        console.error('Failed to load images for preview:', errorMsg)
+        setImageLoadError(errorMsg)
+        setImageLoadingProgress({ loaded: 0, total: 0 })
+      }
+    } else {
+      setLoadedImages([])
     }
 
-    // Load frame1 if available
+    // Load frame1 if available with retry logic
     if (projectData.frame1Url) {
-      const frame1 = new Image()
-      frame1.onload = () => setFrame1Image(frame1)
-      frame1.onerror = (error) => {
+      try {
+        const result = await loadImageWithRetry(projectData.frame1Url, { 
+          maxRetries: 3, 
+          retryDelay: 1000,
+          timeout: 30000 
+        })
+        setFrame1Image(result.image)
+        console.log('✓ Frame 1 loaded successfully')
+      } catch (error) {
         console.error('Failed to load frame1:', projectData.frame1Url, error)
+        setFrame1Image(null)
       }
-      frame1.src = projectData.frame1Url
     }
 
-    // Load frame2 if available
+    // Load frame2 if available with retry logic
     if (projectData.frame2Url) {
-      const frame2 = new Image()
-      frame2.onload = () => setFrame2Image(frame2)
-      frame2.onerror = (error) => {
+      try {
+        const result = await loadImageWithRetry(projectData.frame2Url, { 
+          maxRetries: 3, 
+          retryDelay: 1000,
+          timeout: 30000 
+        })
+        setFrame2Image(result.image)
+        console.log('✓ Frame 2 loaded successfully')
+      } catch (error) {
         console.error('Failed to load frame2:', projectData.frame2Url, error)
+        setFrame2Image(null)
       }
-      frame2.src = projectData.frame2Url
     }
   }
 
@@ -722,21 +747,77 @@ function EditorPageContent() {
           onChange={(e) => e.target.files && uploadImages(e.target.files)}
         />
 
-        {/* Debug info */}
-        <div style={{ fontSize: '12px', color: '#999', marginBottom: '10px', padding: '10px', background: '#f5f5f5', borderRadius: '4px' }}>
-          <strong>Debug Info:</strong><br/>
-          Project loaded: {project ? 'Yes' : 'No'}<br/>
-          Project ID: {projectId}<br/>
-          Images count: {project?.images?.length || 0}<br/>
-          Images array: {JSON.stringify(project?.images || [])}<br/>
-          Upload in progress: {uploading ? 'Yes' : 'No'}<br/>
-          <button 
-            onClick={() => console.log('Current project state:', project)} 
-            style={{ marginTop: '5px', fontSize: '10px', padding: '2px 6px' }}
-          >
-            Log Project State
-          </button>
-        </div>
+        {/* Image Loading Status */}
+        {imageLoadingProgress.total > 0 && (
+          <div style={{ 
+            marginBottom: '15px', 
+            padding: '12px', 
+            backgroundColor: '#f0f8ff', 
+            border: '1px solid #90caf9',
+            borderRadius: '4px'
+          }}>
+            <p style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 'bold', color: '#1976d2' }}>
+              📥 Loading images for preview: {imageLoadingProgress.loaded}/{imageLoadingProgress.total}
+            </p>
+            <div style={{ 
+              width: '100%', 
+              height: '8px', 
+              backgroundColor: '#e3f2fd', 
+              borderRadius: '4px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                width: `${(imageLoadingProgress.loaded / imageLoadingProgress.total) * 100}%`,
+                height: '100%',
+                backgroundColor: '#2196f3',
+                transition: 'width 0.3s ease'
+              }} />
+            </div>
+            <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+              Images are being loaded with retry logic. This may take a moment...
+            </p>
+          </div>
+        )}
+
+        {/* Image Load Error */}
+        {imageLoadError && (
+          <div style={{ 
+            marginBottom: '15px', 
+            padding: '12px', 
+            backgroundColor: '#fff3e0', 
+            border: '1px solid #ffb74d',
+            borderRadius: '4px'
+          }}>
+            <p style={{ marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#e65100' }}>
+              ⚠️ Image Loading Error
+            </p>
+            <p style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>
+              {imageLoadError}
+            </p>
+            <button 
+              className="btn btn-primary"
+              style={{ fontSize: '12px', padding: '4px 8px' }}
+              onClick={() => project && loadImagesForPreview(project)}
+            >
+              Retry Loading Images
+            </button>
+          </div>
+        )}
+
+        {/* Image Load Success */}
+        {project.images.length > 0 && loadedImages.length === project.images.length && !imageLoadError && (
+          <div style={{ 
+            marginBottom: '15px', 
+            padding: '10px', 
+            backgroundColor: '#e8f5e9', 
+            border: '1px solid #81c784',
+            borderRadius: '4px',
+            fontSize: '13px',
+            color: '#2e7d32'
+          }}>
+            ✅ All {loadedImages.length} images loaded and ready for preview
+          </div>
+        )}
 
         {project.images.length > 0 && (
           <div className="thumbnail-grid">
@@ -749,7 +830,16 @@ function EditorPageContent() {
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
               >
-                <img src={image.url} alt={`Image ${index + 1}`} />
+                <img 
+                  src={image.url} 
+                  alt={`Image ${index + 1}`} 
+                  crossOrigin="anonymous"
+                  loading="lazy"
+                  onError={(e) => {
+                    console.error('Failed to load thumbnail:', image.url)
+                    e.currentTarget.style.border = '2px solid #ff9800'
+                  }}
+                />
                 <button
                   className="remove-btn"
                   onClick={() => removeImage(index)}
@@ -795,6 +885,8 @@ function EditorPageContent() {
               <img
                 src={project.frame1Url}
                 alt="Frame 1"
+                crossOrigin="anonymous"
+                loading="lazy"
                 style={{ width: '60px', height: '60px', objectFit: 'contain', border: '1px solid #ddd' }}
               />
               <span style={{ fontSize: '14px', color: '#666' }}>
@@ -996,6 +1088,8 @@ function EditorPageContent() {
               <img
                 src={project.frame2Url}
                 alt="Frame 2"
+                crossOrigin="anonymous"
+                loading="lazy"
                 style={{ width: '60px', height: '60px', objectFit: 'contain', border: '1px solid #ddd' }}
               />
               <span style={{ fontSize: '14px', color: '#666' }}>
