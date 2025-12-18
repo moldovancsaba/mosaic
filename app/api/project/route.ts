@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       frame2H: 0,
       transition: {
         type: 'wipe' as const,
-        direction: 'left' as const,
+        direction: 'right' as const,
         durationMs: 500
       },
       transform: {

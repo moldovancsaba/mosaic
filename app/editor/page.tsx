@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { renderStage1Frame, renderFinalFrame, RenderConfig, calculateTimingInfo } from '../../src/canvas/renderFrame'
-import { transcodeWebMToMp4, canTranscodeToMp4, getEstimatedOutputSize } from '../../src/media/transcodeMp4'
+import { renderStage1Frame, renderFinalFrame, RenderConfig, calculateTimingInfo } from '@/canvas/renderFrame'
+import { transcodeWebMToMp4, canTranscodeToMp4, getEstimatedOutputSize } from '@/media/transcodeMp4'
 
 interface ProjectImage {
   url: string
@@ -137,9 +137,13 @@ function EditorPageContent() {
   }
 
   const saveProject = async (updates: Partial<Project>) => {
-    if (!project) return
+    if (!project) {
+      console.error('No project to save!')
+      return
+    }
 
     try {
+      console.log('Saving project updates:', updates)
       const response = await fetch(`/api/project?id=${projectId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -148,9 +152,13 @@ function EditorPageContent() {
 
       if (response.ok) {
         const data = await response.json()
+        console.log('Project saved successfully, new project state:', data.project)
+        console.log('New project images count:', data.project.images?.length || 0)
         setProject(data.project)
         // Reload images when project updates
         loadImagesForPreview(data.project)
+      } else {
+        console.error('Failed to save project:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Failed to save project:', error)
@@ -416,8 +424,15 @@ function EditorPageContent() {
   }
 
   const uploadImages = async (files: FileList) => {
+    // Prevent multiple simultaneous uploads
+    if (uploading) {
+      console.log('Upload already in progress, ignoring new upload request')
+      return
+    }
+
     setUploading(true)
     const newImages: ProjectImage[] = []
+    const failedUploads: string[] = []
     
     // Filter valid image files
     const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
@@ -425,9 +440,11 @@ function EditorPageContent() {
     
     if (totalFiles === 0) {
       setUploading(false)
+      alert('No valid image files selected. Please select JPG, PNG, or other image files.')
       return
     }
 
+    console.log(`Starting upload of ${totalFiles} files`)
     setUploadProgress({ current: 0, total: totalFiles, percentage: 0 })
 
     try {
@@ -436,58 +453,76 @@ function EditorPageContent() {
         
         // Update progress for current file
         setUploadProgress({ 
-          current: i + 1, 
+          current: i, 
           total: totalFiles, 
-          percentage: Math.round(((i + 0.5) / totalFiles) * 100) 
+          percentage: Math.round((i / totalFiles) * 100) 
         })
 
         const formData = new FormData()
         formData.append('image', file)
 
-        const response = await fetch('/api/imgbb', {
-          method: 'POST',
-          body: formData
-        })
+        console.log(`Uploading file ${i + 1}/${totalFiles}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
+        
+        try {
+          const response = await fetch('/api/imgbb', {
+            method: 'POST',
+            body: formData
+          })
 
-        if (response.ok) {
-          const data = await response.json()
-          newImages.push({
-            url: data.url,
-            order: (project?.images.length || 0) + newImages.length,
-            width: data.width || 0,
-            height: data.height || 0
-          })
-          
-          // Update progress after successful upload
-          setUploadProgress({ 
-            current: i + 1, 
-            total: totalFiles, 
-            percentage: Math.round(((i + 1) / totalFiles) * 100) 
-          })
-        } else {
-          console.error(`Failed to upload ${file.name}:`, response.statusText)
+          if (response.ok) {
+            const data = await response.json()
+            console.log(`✓ Upload successful for ${file.name}:`, data)
+            
+            newImages.push({
+              url: data.url,
+              order: (project?.images.length || 0) + newImages.length,
+              width: data.width || 0,
+              height: data.height || 0
+            })
+          } else {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+            console.error(`✗ Failed to upload ${file.name}:`, response.status, errorData)
+            failedUploads.push(`${file.name}: ${errorData.error || response.statusText}`)
+          }
+        } catch (networkError) {
+          console.error(`✗ Network error uploading ${file.name}:`, networkError)
+          failedUploads.push(`${file.name}: Network error`)
         }
+        
+        // Update progress after processing file
+        setUploadProgress({ 
+          current: i + 1, 
+          total: totalFiles, 
+          percentage: Math.round(((i + 1) / totalFiles) * 100) 
+        })
       }
 
+      // Save successful uploads to database
       if (newImages.length > 0) {
         const existingImages = project?.images || []
         const updatedImages = [...existingImages, ...newImages]
-        console.log('Saving images to database:', {
-          existing: existingImages.length,
-          new: newImages.length,
-          total: updatedImages.length
-        })
+        console.log(`Saving ${newImages.length} new images to database`)
+        console.log('Current project state:', project)
+        console.log('Existing images:', existingImages.length)
+        console.log('New images:', newImages)
+        console.log('Updated images array:', updatedImages)
         await saveProject({ images: updatedImages })
+        console.log('✓ Images saved to database successfully')
       }
       
-      // Show completion
-      if (newImages.length < totalFiles) {
-        alert(`Successfully uploaded ${newImages.length} of ${totalFiles} images. Some uploads may have failed.`)
+      // Show results to user
+      if (failedUploads.length > 0) {
+        const message = `Upload completed with issues:\n✓ ${newImages.length} images uploaded successfully\n✗ ${failedUploads.length} failed:\n${failedUploads.join('\n')}`
+        alert(message)
+      } else if (newImages.length > 0) {
+        console.log(`✓ All ${newImages.length} images uploaded successfully`)
+      } else {
+        alert('No images were uploaded successfully. Please check your internet connection and try again.')
       }
       
     } catch (error) {
-      console.error('Upload failed:', error)
-      alert('Upload failed. Please try again.')
+      console.error('Upload process failed:', error)
+      alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`)
     } finally {
       setUploading(false)
       setUploadProgress({ current: 0, total: 0, percentage: 0 })
@@ -495,33 +530,50 @@ function EditorPageContent() {
   }
 
   const uploadFrame = async (file: File, frameType: 'frame1' | 'frame2') => {
+    // Prevent multiple simultaneous uploads
+    if (uploading) {
+      console.log('Upload already in progress, ignoring frame upload request')
+      return
+    }
+
     setUploading(true)
-    setUploadProgress({ current: 1, total: 1, percentage: 50 })
+    setUploadProgress({ current: 0, total: 1, percentage: 0 })
     
     try {
+      console.log(`Uploading ${frameType}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
+      
       const formData = new FormData()
       formData.append('image', file)
+
+      setUploadProgress({ current: 0, total: 1, percentage: 25 })
 
       const response = await fetch('/api/imgbb', {
         method: 'POST',
         body: formData
       })
 
+      setUploadProgress({ current: 0, total: 1, percentage: 50 })
+
       if (response.ok) {
         const data = await response.json()
+        console.log(`✓ ${frameType} upload successful:`, data)
+        
         const updates = frameType === 'frame1' 
           ? { frame1Url: data.url, frame1W: data.width, frame1H: data.height }
           : { frame2Url: data.url, frame2W: data.width, frame2H: data.height }
         
-        setUploadProgress({ current: 1, total: 1, percentage: 90 })
+        setUploadProgress({ current: 0, total: 1, percentage: 75 })
         await saveProject(updates)
         setUploadProgress({ current: 1, total: 1, percentage: 100 })
+        console.log(`✓ ${frameType} saved to database`)
       } else {
-        throw new Error(`Failed to upload ${frameType}`)
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error(`✗ Failed to upload ${frameType}:`, response.status, errorData)
+        throw new Error(`Upload failed: ${errorData.error || response.statusText}`)
       }
     } catch (error) {
-      console.error('Frame upload failed:', error)
-      alert(`Failed to upload ${frameType}. Please try again.`)
+      console.error(`${frameType} upload failed:`, error)
+      alert(`Failed to upload ${frameType}: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`)
     } finally {
       setUploading(false)
       setUploadProgress({ current: 0, total: 0, percentage: 0 })
@@ -573,6 +625,11 @@ function EditorPageContent() {
 
   if (!project) {
     return <div className="container">Project not found</div>
+  }
+
+  // Ensure project.images is always an array
+  if (!project.images) {
+    project.images = []
   }
 
   return (
@@ -642,6 +699,9 @@ function EditorPageContent() {
               <p style={{ fontSize: '14px', color: '#666' }}>
                 {uploadProgress.percentage}% complete
               </p>
+              <p style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
+                Check browser console for detailed upload logs
+              </p>
             </div>
           ) : (
             <>
@@ -661,6 +721,22 @@ function EditorPageContent() {
           style={{ display: 'none' }}
           onChange={(e) => e.target.files && uploadImages(e.target.files)}
         />
+
+        {/* Debug info */}
+        <div style={{ fontSize: '12px', color: '#999', marginBottom: '10px', padding: '10px', background: '#f5f5f5', borderRadius: '4px' }}>
+          <strong>Debug Info:</strong><br/>
+          Project loaded: {project ? 'Yes' : 'No'}<br/>
+          Project ID: {projectId}<br/>
+          Images count: {project?.images?.length || 0}<br/>
+          Images array: {JSON.stringify(project?.images || [])}<br/>
+          Upload in progress: {uploading ? 'Yes' : 'No'}<br/>
+          <button 
+            onClick={() => console.log('Current project state:', project)} 
+            style={{ marginTop: '5px', fontSize: '10px', padding: '2px 6px' }}
+          >
+            Log Project State
+          </button>
+        </div>
 
         {project.images.length > 0 && (
           <div className="thumbnail-grid">

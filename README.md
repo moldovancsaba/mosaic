@@ -43,9 +43,9 @@ A 100% client-side Next.js web app that creates looping slideshow videos with cu
 - **Framework**: Next.js 14+ with App Router
 - **Language**: TypeScript
 - **Rendering**: HTMLCanvasElement + CanvasRenderingContext2D
-- **Video Export**: MediaRecorder API (WebM), ffmpeg.wasm (MP4)
+- **Video Export**: MediaRecorder API (WebM), ffmpeg.wasm 0.12.15 (MP4/MOV)
 - **Image Storage**: imgbb API
-- **Project Storage**: MongoDB Atlas
+- **Project Storage**: MongoDB Atlas (native driver)
 - **Hosting**: Vercel-ready
 
 ## 📋 How It Works
@@ -113,23 +113,25 @@ const transitionProgress = (cycleTime - holdTime) / transitionTime
 ## 🎯 Milestones
 
 - [x] **M1**: Upload + Reorder + Persist
-- [x] **M2**: Stage-1 Render + Frame1 Overlay (core algorithms)
-- [x] **M3**: Transitions + Loop Preview (core algorithms)
-- [ ] **M4**: Stage-2 Composition (canvas integration needed)
-- [x] **M5**: Export WebM (core implementation)
-- [ ] **M6**: Optional MP4 Export (ffmpeg.wasm integration)
+- [x] **M2**: Stage-1 Render + Frame1 Overlay
+- [x] **M3**: Transitions + Loop Preview
+- [x] **M4**: Stage-2 Composition
+- [x] **M5**: Export WebM
+- [x] **M6**: MP4/MOV Export via ffmpeg.wasm
 
-## 🚧 Current Status
+## 🚀 Current Status
 
-**Milestone M1 Complete** ✅
-- Full project structure implemented
-- All core algorithms and utilities ready
-- UI components and API routes functional
+**ALL MILESTONES COMPLETE** ✅
+- Full video composer application with all features
+- Multi-image upload and management
+- Frame overlays (Frame #1 and Frame #2)
+- Four transition types with directional control
+- Live preview with dual mode (Stage-1 / Final)
+- WebM export with codec detection
+- MP4/MOV conversion via ffmpeg.wasm
+- MongoDB persistence for project management
 
-**Next Steps**:
-- Integrate canvas rendering with UI
-- Add live preview functionality
-- Complete export workflow
+**Production Ready**: All core features implemented and functional
 
 ## 📄 License
 
@@ -143,11 +145,12 @@ MIT License - see LICENSE file for details
 4. Test thoroughly
 5. Submit a pull request
 
-## 🐛 Known Issues
+## 😧 Known Issues
 
 - Mobile support is limited (desktop-first design)
-- MP4 export not yet implemented (M6 milestone)
+- ffmpeg.wasm requires SharedArrayBuffer support (modern browsers only)
 - Large image uploads may be slow on slower connections
+- Very long export durations (>60s) may cause memory issues
 
 ## 📞 Support
 
