@@ -10,12 +10,18 @@ InBrowserVideoComposer is a 100% client-side Next.js app for creating looping sl
 
 ### Development
 ```bash
-npm run dev          # Start development server at http://localhost:7777
+npm run dev          # Start development server (auto-finds port 7777-7800)
+npm run dev:simple   # Start on port 7777 only (no auto-detection)
 npm run build        # Build production bundle
 npm run start        # Start production server
 npm run lint         # Run ESLint
 npm run type-check   # Run TypeScript compiler check (no emit)
 ```
+
+**Port Configuration:**
+- Default: Auto-detects available port in range 7777-7800
+- The server will use the first available port starting from 7777
+- Useful when running multiple projects simultaneously
 
 ### Environment Setup
 ```bash

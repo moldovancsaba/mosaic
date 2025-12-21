@@ -34,9 +34,10 @@ A 100% client-side Next.js web app that creates looping slideshow videos with cu
    ```bash
    npm run dev
    ```
+   The server will automatically find an available port in the range 7777-7800.
 
 4. **Open Browser**
-   Navigate to `http://localhost:7777`
+   The console will display the actual port (usually `http://localhost:7777`)
 
 ## 🛠️ Tech Stack
 
