@@ -48,6 +48,17 @@ A 100% client-side Next.js web app that creates looping slideshow videos with cu
 - **Project Storage**: MongoDB Atlas (native driver)
 - **Hosting**: Vercel-ready
 
+## 📚 Documentation
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Complete system architecture and technical design
+- **[BROWSER_COMPATIBILITY.md](BROWSER_COMPATIBILITY.md)** - Browser requirements and compatibility matrix
+- **[NAMING_GUIDE.md](NAMING_GUIDE.md)** - Coding conventions and naming standards
+- **[TASKLIST.md](TASKLIST.md)** - Active tasks and project management
+- **[ROADMAP.md](ROADMAP.md)** - Future development plans (Q1-Q4 2025)
+- **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Version history and changelog
+- **[LEARNINGS.md](LEARNINGS.md)** - Project insights and architectural decisions
+- **[WARP.md](WARP.md)** - AI development guidance
+
 ## 📋 How It Works
 
 1. **Upload Images**: Add 10+ images and arrange them in your desired order
