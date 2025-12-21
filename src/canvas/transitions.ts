@@ -15,6 +15,23 @@ export const directionVectors: Record<Direction, DirectionVector> = {
 
 /**
  * Apply wipe transition - reveal next image using moving clip rect
+ * 
+ * WHY CLIP RECT APPROACH:
+ * Wipe transitions reveal the next image progressively by expanding a clipping rectangle.
+ * The current image stays in place while the next image is revealed through the growing clip area.
+ * 
+ * IMPORTANT: Both currentImage and nextImage should be composite images (image + Frame #1 overlay)
+ * to ensure the frame overlay moves with the transition. See createCompositeImage() for details.
+ * 
+ * @param ctx - Canvas context to draw into
+ * @param currentImage - Current composite image (or canvas)
+ * @param nextImage - Next composite image (or canvas)
+ * @param progress - Transition progress 0 (start) to 1 (complete)
+ * @param direction - Direction of wipe (left/right/up/down)
+ * @param canvasW - Canvas width
+ * @param canvasH - Canvas height
+ * @param currentFit - Fit data for current image (usually full canvas)
+ * @param nextFit - Fit data for next image (usually full canvas)
  */
 export function applyWipeTransition(
   ctx: CanvasRenderingContext2D,

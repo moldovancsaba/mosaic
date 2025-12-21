@@ -25,6 +25,7 @@ export interface ExportConfig {
 export interface Project {
   _id?: string
   name: string
+  version: string // Application version when project was created/updated
   images: ProjectImage[]
   frame1Url?: string
   frame1W?: number

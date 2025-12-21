@@ -32,6 +32,25 @@ export interface TimelineState {
 
 /**
  * Calculate timeline state for a given frame with strict duration control
+ * 
+ * WHY THIS APPROACH:
+ * The timeline needs to determine which image to show and whether we're transitioning
+ * at any given frame. We loop through images to fill the total duration, distributing
+ * time fairly between hold time (static display) and transition time (animation).
+ * 
+ * KEY DECISION: If total transition time exceeds duration (many images + long transitions),
+ * we auto-adjust transitions to 50% of per-image time rather than failing or cutting images.
+ * This ensures all images are shown while maintaining smooth transitions.
+ * 
+ * ALGORITHM:
+ * 1. Calculate ideal time per image (duration / imageCount)
+ * 2. Subtract transition time from each cycle
+ * 3. Determine current cycle based on elapsed time
+ * 4. Calculate transition progress within cycle (0-1)
+ * 
+ * @param frameNumber - Current frame (0-based)
+ * @param config - Render configuration with images, fps, duration, transition settings
+ * @returns Timeline state with current/next image indices and transition progress
  */
 export function calculateTimelineState(
   frameNumber: number,
@@ -55,7 +74,9 @@ export function calculateTimelineState(
   const totalTransitionTime = transitionTimeSeconds * imageCount
   const totalHoldTime = durationSeconds - totalTransitionTime
   
-  // If total transition time exceeds duration, adjust transition time
+  // WHY AUTO-ADJUST: If user configures 20 images with 2s transitions in a 30s video,
+  // we'd need 40s total (impossible). Rather than failing or cutting images, we reduce
+  // transition time proportionally. Using 50% ensures smooth animations while showing all images.
   const adjustedTransitionTime = totalTransitionTime > durationSeconds 
     ? (durationSeconds / imageCount) * 0.5  // Use 50% of time per image for transitions
     : transitionTimeSeconds
@@ -145,6 +166,24 @@ export function calculateTimingInfo(config: RenderConfig): {
 
 /**
  * Create a composite image (image + Frame 1 overlay) on a temporary canvas
+ * 
+ * WHY COMPOSITE PATTERN:
+ * This is a critical implementation detail. We create composite images (base image + Frame #1 overlay)
+ * BEFORE applying transitions. This ensures that the Frame #1 overlay participates in transition
+ * animations naturally - it moves, slides, or fades along with the image.
+ * 
+ * ALTERNATIVE REJECTED: Initially tried applying transitions to raw images, then drawing Frame #1
+ * on top. This resulted in Frame #1 staying stationary while images moved beneath it, which looked
+ * incorrect and confusing to users.
+ * 
+ * TRADE-OFF: Creates temporary canvas for each composite, slightly more memory usage, but ensures
+ * correct visual behavior which is essential for the product.
+ * 
+ * @param image - Base image to draw (cover-fit)
+ * @param frame1 - Optional Frame #1 overlay (PNG with transparency)
+ * @param canvasW - Canvas width (from Frame #1 dimensions)
+ * @param canvasH - Canvas height (from Frame #1 dimensions)
+ * @returns Temporary canvas with composite image
  */
 function createCompositeImage(
   image: HTMLImageElement | ImageBitmap,
@@ -171,6 +210,23 @@ function createCompositeImage(
 
 /**
  * Render a single frame to Stage-1 canvas (slideshow with Frame #1 overlay)
+ * 
+ * TWO-STAGE ARCHITECTURE:
+ * This is Stage-1 of the rendering pipeline. It creates the slideshow with Frame #1 overlay.
+ * Stage-2 (optional) takes this output and positions it within Frame #2 for final composition.
+ * 
+ * COMPOSITE IMAGE PATTERN:
+ * Uses createCompositeImage() to bake Frame #1 into each image BEFORE transitions.
+ * This is critical for correct visual behavior - see createCompositeImage() comments for details.
+ * 
+ * RENDERING LOGIC:
+ * 1. Calculate timeline state (which image to show, transition progress)
+ * 2. If not transitioning: Draw single composite image
+ * 3. If transitioning: Create both composites and apply transition effect
+ * 
+ * @param ctx - Stage-1 canvas context
+ * @param frameNumber - Current frame (0-based)
+ * @param config - Full render configuration
  */
 export function renderStage1Frame(
   ctx: CanvasRenderingContext2D,
@@ -217,6 +273,23 @@ export function renderStage1Frame(
 
 /**
  * Render final composite frame (Stage-1 placed in Frame #2)
+ * 
+ * TWO-STAGE ARCHITECTURE:
+ * This is Stage-2 of the rendering pipeline. Takes Stage-1 output (slideshow) and positions
+ * it within Frame #2 canvas, then applies Frame #2 overlay.
+ * 
+ * USE CASE:
+ * Allows users to create slideshow in one aspect ratio (e.g., square for Instagram)
+ * and position it within a larger frame (e.g., 16:9 for YouTube) with decorative borders.
+ * 
+ * WHY OPTIONAL:
+ * If user doesn't upload Frame #2, we export Stage-1 directly. This stage only runs when
+ * Frame #2 is present.
+ * 
+ * @param finalCtx - Stage-2 (final) canvas context
+ * @param stage1Canvas - The Stage-1 canvas with rendered slideshow
+ * @param frameNumber - Current frame (for any future frame-dependent logic)
+ * @param config - Full render configuration including transform and Frame #2
  */
 export function renderFinalFrame(
   finalCtx: CanvasRenderingContext2D,

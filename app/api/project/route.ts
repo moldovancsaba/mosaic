@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MongoClient, ObjectId } from 'mongodb'
+import packageJson from '../../../package.json'
 
 const client = new MongoClient(process.env.MONGODB_URI!)
 let isConnected = false
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
 
     const project = {
       name: name.trim(),
+      version: packageJson.version, // Track app version for compatibility
       images: [],
       frame1Url: '',
       frame1W: 0,
@@ -103,6 +105,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const updateData = {
       ...body,
+      version: packageJson.version, // Update version on every save
       updatedAt: new Date().toISOString()
     }
 
