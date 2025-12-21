@@ -36,7 +36,7 @@ A 100% client-side Next.js web app that creates looping slideshow videos with cu
    ```
 
 4. **Open Browser**
-   Navigate to `http://localhost:3000`
+   Navigate to `http://localhost:7777`
 
 ## 🛠️ Tech Stack
 

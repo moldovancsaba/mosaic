@@ -10,7 +10,7 @@ InBrowserVideoComposer is a 100% client-side Next.js app for creating looping sl
 
 ### Development
 ```bash
-npm run dev          # Start development server at http://localhost:3000
+npm run dev          # Start development server at http://localhost:7777
 npm run build        # Build production bundle
 npm run start        # Start production server
 npm run lint         # Run ESLint
