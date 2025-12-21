@@ -20,6 +20,8 @@ A 100% client-side Next.js web app that creates looping slideshow videos with cu
    cd in-browser-video-composer
    npm install
    ```
+   
+   **Note**: The project uses Next.js 16.1.0 with `.npmrc` configured for `legacy-peer-deps=true` due to a known ESLint circular dependency issue. This is automatically handled - no additional flags needed.
 
 2. **Environment Setup**
    ```bash
@@ -41,8 +43,9 @@ A 100% client-side Next.js web app that creates looping slideshow videos with cu
 
 ## 🛠️ Tech Stack
 
-- **Framework**: Next.js 14+ with App Router
-- **Language**: TypeScript
+- **Framework**: Next.js 16.1.0 with App Router (Turbopack)
+- **Language**: TypeScript (strict mode)
+- **UI**: React 19.2.3
 - **Rendering**: HTMLCanvasElement + CanvasRenderingContext2D
 - **Video Export**: MediaRecorder API (WebM), ffmpeg.wasm 0.12.15 (MP4/MOV)
 - **Image Storage**: imgbb API
@@ -159,6 +162,13 @@ MIT License - see LICENSE file for details
 
 ## 😧 Known Issues
 
+- **ESLint Disabled**: Temporarily disabled due to circular dependency bug in `eslint-config-next@16.1.0`
+  - Use `npm run type-check` for code validation
+  - Build and TypeScript compilation fully functional
+  - Will be resolved in future Next.js update
+- **Peer Dependency Warning**: ESLint 8 vs ESLint 9 conflict (handled via `.npmrc`)
+  - Project uses `legacy-peer-deps=true` automatically
+  - No impact on functionality
 - Mobile support is limited (desktop-first design)
 - ffmpeg.wasm requires SharedArrayBuffer support (modern browsers only)
 - Large image uploads may be slow on slower connections
