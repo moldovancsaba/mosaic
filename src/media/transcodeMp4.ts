@@ -49,8 +49,9 @@ export function canTranscodeToMp4(): boolean {
 /**
  * Load ffmpeg.wasm lazily
  * 
- * Note: Uses toBlobURL to convert CDN resources to blob URLs
- * This avoids Next.js 16 Turbopack dynamic import issues
+ * Strategy:
+ * 1. Try toBlobURL (avoids bundler issues)
+ * 2. Fallback to direct CDN URLs if blob conversion fails
  */
 export async function loadFFmpeg(): Promise<FFmpeg> {
   if (ffmpegInstance) {
@@ -60,30 +61,47 @@ export async function loadFFmpeg(): Promise<FFmpeg> {
   try {
     ffmpegInstance = new FFmpeg()
     
-    // Use toBlobURL to fetch from CDN and convert to blob URLs
-    // This avoids module resolution issues in Next.js 16 Turbopack
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
     
-    console.log('Loading ffmpeg.wasm from CDN via blob URLs...')
+    console.log('Loading ffmpeg.wasm...')
     console.log('Browser info:', {
       userAgent: navigator.userAgent,
       crossOriginIsolated: window.crossOriginIsolated,
-      sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined'
+      sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
+      protocol: window.location.protocol
     })
     
-    // Convert CDN URLs to blob URLs to avoid CORS and bundler issues
-    const coreURL = await toBlobURL(
-      `${baseURL}/ffmpeg-core.js`,
-      'text/javascript'
-    )
-    const wasmURL = await toBlobURL(
-      `${baseURL}/ffmpeg-core.wasm`,
-      'application/wasm'
-    )
-    const workerURL = await toBlobURL(
-      `${baseURL}/ffmpeg-core.worker.js`,
-      'text/javascript'
-    )
+    let coreURL: string
+    let wasmURL: string
+    let workerURL: string
+    let loadMethod: string
+    
+    // Try Method 1: toBlobURL (preferred for Next.js 16)
+    try {
+      console.log('Attempting to load via blob URLs...')
+      coreURL = await toBlobURL(
+        `${baseURL}/ffmpeg-core.js`,
+        'text/javascript'
+      )
+      wasmURL = await toBlobURL(
+        `${baseURL}/ffmpeg-core.wasm`,
+        'application/wasm'
+      )
+      workerURL = await toBlobURL(
+        `${baseURL}/ffmpeg-core.worker.js`,
+        'text/javascript'
+      )
+      loadMethod = 'blob URLs'
+      console.log('✓ Blob URLs created successfully')
+    } catch (blobError) {
+      // Fallback to direct CDN URLs
+      console.warn('Blob URL conversion failed, falling back to direct CDN:', blobError)
+      coreURL = `${baseURL}/ffmpeg-core.js`
+      wasmURL = `${baseURL}/ffmpeg-core.wasm`
+      workerURL = `${baseURL}/ffmpeg-core.worker.js`
+      loadMethod = 'direct CDN'
+      console.log('Using direct CDN URLs')
+    }
     
     await ffmpegInstance.load({
       coreURL,
@@ -91,7 +109,7 @@ export async function loadFFmpeg(): Promise<FFmpeg> {
       workerURL,
     })
     
-    console.log('✓ ffmpeg.wasm loaded successfully via blob URLs')
+    console.log(`✓ ffmpeg.wasm loaded successfully via ${loadMethod}`)
 
     return ffmpegInstance
   } catch (error) {
@@ -109,12 +127,19 @@ export async function loadFFmpeg(): Promise<FFmpeg> {
       sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
       webAssembly: typeof WebAssembly !== 'undefined',
       protocol: window.location.protocol,
-      hostname: window.location.hostname
+      hostname: window.location.hostname,
+      online: navigator.onLine
     })
     
-    // Provide more helpful error message
+    // Provide helpful error messages based on error type
     if (errorMsg.includes('dynamic') || errorMsg.includes('module')) {
-      throw new Error('FFmpeg loading failed. Please refresh the page or use WebM export instead.')
+      throw new Error('FFmpeg loading failed due to bundler issue. Please refresh the page.')
+    }
+    if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('Load failed')) {
+      throw new Error('Network error loading FFmpeg. Please check your internet connection and try again.')
+    }
+    if (!window.crossOriginIsolated) {
+      throw new Error('Your browser does not support video conversion. SharedArrayBuffer is not available.')
     }
     
     throw new Error(`Failed to load ffmpeg.wasm: ${errorMsg}`)

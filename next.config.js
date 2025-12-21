@@ -18,7 +18,9 @@ const nextConfig = {
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            // Use credentialless to allow loading from CDN (unpkg.com)
+            // require-corp would block external resources
+            value: 'credentialless',
           },
           {
             key: 'Cross-Origin-Opener-Policy',
