@@ -73,12 +73,6 @@ function EditorPageContent() {
   const [imageLoadingProgress, setImageLoadingProgress] = useState({ loaded: 0, total: 0 })
   const [imageLoadError, setImageLoadError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (projectId) {
-      loadProject()
-    }
-  }, [projectId])
-
   const loadProject = async () => {
     try {
       const response = await fetch(`/api/project?id=${projectId}`)
@@ -94,6 +88,13 @@ function EditorPageContent() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (projectId) {
+      loadProject()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
 
   const loadImagesForPreview = async (projectData: Project) => {
     setImageLoadError(null)
