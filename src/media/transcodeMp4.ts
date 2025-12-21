@@ -1,5 +1,5 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile } from '@ffmpeg/util'
+import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 export interface TranscodeOptions {
   webmBlob: Blob
@@ -48,6 +48,9 @@ export function canTranscodeToMp4(): boolean {
 
 /**
  * Load ffmpeg.wasm lazily
+ * 
+ * Note: Uses toBlobURL to convert CDN resources to blob URLs
+ * This avoids Next.js 16 Turbopack dynamic import issues
  */
 export async function loadFFmpeg(): Promise<FFmpeg> {
   if (ffmpegInstance) {
@@ -57,42 +60,63 @@ export async function loadFFmpeg(): Promise<FFmpeg> {
   try {
     ffmpegInstance = new FFmpeg()
     
-    // Try loading from our own server first (works with Safari + COEP: require-corp)
-    // Fallback to CDN if needed
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+    // Use toBlobURL to fetch from CDN and convert to blob URLs
+    // This avoids module resolution issues in Next.js 16 Turbopack
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
     
-    let baseURL: string
-    let loadMethod: string
-    
-    if (isSafari || window.location.hostname === 'localhost' || window.location.hostname.includes('mosaic.doneisbetter.com')) {
-      // Use CDN with cross-origin attribute for Safari and production
-      baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
-      loadMethod = 'CDN (cross-origin)'
-      console.log('Loading ffmpeg.wasm from CDN for Safari/production...')
-    } else {
-      // Use CDN for other browsers
-      baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
-      loadMethod = 'CDN'
-      console.log('Loading ffmpeg.wasm from CDN...')
-    }
-    
-    await ffmpegInstance.load({
-      coreURL: `${baseURL}/ffmpeg-core.js`,
-      wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+    console.log('Loading ffmpeg.wasm from CDN via blob URLs...')
+    console.log('Browser info:', {
+      userAgent: navigator.userAgent,
+      crossOriginIsolated: window.crossOriginIsolated,
+      sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined'
     })
     
-    console.log(`✓ ffmpeg.wasm loaded successfully (${loadMethod})`)
+    // Convert CDN URLs to blob URLs to avoid CORS and bundler issues
+    const coreURL = await toBlobURL(
+      `${baseURL}/ffmpeg-core.js`,
+      'text/javascript'
+    )
+    const wasmURL = await toBlobURL(
+      `${baseURL}/ffmpeg-core.wasm`,
+      'application/wasm'
+    )
+    const workerURL = await toBlobURL(
+      `${baseURL}/ffmpeg-core.worker.js`,
+      'text/javascript'
+    )
+    
+    await ffmpegInstance.load({
+      coreURL,
+      wasmURL,
+      workerURL,
+    })
+    
+    console.log('✓ ffmpeg.wasm loaded successfully via blob URLs')
 
     return ffmpegInstance
   } catch (error) {
     ffmpegInstance = null
     const errorMsg = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    
     console.error('✗ Failed to load ffmpeg.wasm:', errorMsg)
-    console.error('Browser info:', {
+    if (errorStack) {
+      console.error('Error stack:', errorStack)
+    }
+    console.error('Browser capabilities:', {
       userAgent: navigator.userAgent,
       crossOriginIsolated: window.crossOriginIsolated,
-      sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined'
+      sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
+      webAssembly: typeof WebAssembly !== 'undefined',
+      protocol: window.location.protocol,
+      hostname: window.location.hostname
     })
+    
+    // Provide more helpful error message
+    if (errorMsg.includes('dynamic') || errorMsg.includes('module')) {
+      throw new Error('FFmpeg loading failed. Please refresh the page or use WebM export instead.')
+    }
+    
     throw new Error(`Failed to load ffmpeg.wasm: ${errorMsg}`)
   }
 }

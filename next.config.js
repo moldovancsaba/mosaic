@@ -28,9 +28,24 @@ const nextConfig = {
       },
     ]
   },
-  // Empty turbopack config to silence Next.js 16 warning
-  // (No custom webpack config needed - Web Workers not used)
-  turbopack: {},
+  // Webpack config for production builds
+  webpack: (config, { isServer }) => {
+    // Don't bundle ffmpeg.wasm - it's loaded dynamically from CDN
+    if (!isServer) {
+      config.externals = config.externals || {}
+      config.externals['@ffmpeg/ffmpeg'] = '@ffmpeg/ffmpeg'
+      config.externals['@ffmpeg/util'] = '@ffmpeg/util'
+    }
+    return config
+  },
+  // Turbopack config for development
+  turbopack: {
+    // Tell Turbopack to treat ffmpeg packages as external
+    resolveAlias: {
+      '@ffmpeg/ffmpeg': '@ffmpeg/ffmpeg',
+      '@ffmpeg/util': '@ffmpeg/util',
+    },
+  },
 }
 
 module.exports = nextConfig
