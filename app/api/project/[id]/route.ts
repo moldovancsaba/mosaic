@@ -13,12 +13,13 @@ async function connectToDatabase() {
 }
 
 // GET /api/project/[id] - Get single project
+// Next.js 16: params is now a Promise that must be awaited
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     if (!ObjectId.isValid(id)) {
       return NextResponse.json(
@@ -50,12 +51,13 @@ export async function GET(
 }
 
 // PUT /api/project/[id] - Update project
+// Next.js 16: params is now a Promise that must be awaited
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     if (!ObjectId.isValid(id)) {
@@ -97,12 +99,13 @@ export async function PUT(
 }
 
 // DELETE /api/project/[id] - Delete project
+// Next.js 16: params is now a Promise that must be awaited
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     if (!ObjectId.isValid(id)) {
       return NextResponse.json(

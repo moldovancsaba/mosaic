@@ -1,8 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Use remotePatterns instead of deprecated domains
   images: {
-    domains: ['i.ibb.co'], // imgbb domain for uploaded images
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'i.ibb.co',
+        pathname: '/**',
+      },
+    ],
   },
+  // Security headers for SharedArrayBuffer (required for ffmpeg.wasm)
   async headers() {
     return [
       {
@@ -20,21 +28,9 @@ const nextConfig = {
       },
     ]
   },
-  webpack: (config) => {
-    // Support for Web Workers
-    config.module.rules.push({
-      test: /\.worker\.(js|ts)$/,
-      use: {
-        loader: 'worker-loader',
-        options: {
-          name: 'static/[hash].worker.js',
-          publicPath: '/_next/',
-        },
-      },
-    });
-    
-    return config;
-  },
+  // Empty turbopack config to silence Next.js 16 warning
+  // (No custom webpack config needed - Web Workers not used)
+  turbopack: {},
 }
 
 module.exports = nextConfig
